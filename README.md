@@ -4,10 +4,10 @@
 
 **Takes a timetable laid out on a landscape A4 page (`.docx` or `.pdf`), turns it 90° and places it in the upper half of a portrait A4 sheet. The empty lower half is marked with a dotted cut line.**
 
-[Download for Windows](https://github.com/ALEXalesha/Converter/releases/latest) &nbsp;·&nbsp; [Русская версия этого файла](README.ru.md)
+[Download for Windows](https://github.com/ALEXalesha/TimetableToPdf/releases/latest) &nbsp;·&nbsp; [Русская версия этого файла](README.ru.md)
 
-[![CI](https://github.com/ALEXalesha/Converter/actions/workflows/ci.yml/badge.svg)](https://github.com/ALEXalesha/Converter/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ALEXalesha/Converter?color=4c9aff)](https://github.com/ALEXalesha/Converter/releases/latest)
+[![CI](https://github.com/ALEXalesha/TimetableToPdf/actions/workflows/ci.yml/badge.svg)](https://github.com/ALEXalesha/TimetableToPdf/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ALEXalesha/TimetableToPdf?color=4c9aff)](https://github.com/ALEXalesha/TimetableToPdf/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <img src="docs/screenshots/window.png" width="900" alt="Program window">
