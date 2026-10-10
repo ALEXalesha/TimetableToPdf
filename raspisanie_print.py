@@ -18,7 +18,12 @@ import sys
 
 import raspisanie_core as core
 
-DEFAULT_INPUT = r"C:\Users\you\Word txt\Расписание.docx"
+# Файл по умолчанию, когда путь не указан и в ответ на вопрос нажат Enter:
+# переменная окружения RASPISANIE_INPUT, а без неё - «Word txt\Расписание.docx»
+# в папке рядом с папкой программы (у автора расписание лежит именно так).
+# Личный путь строкой здесь не пишется: файл уходит в открытый репозиторий.
+DEFAULT_INPUT = os.environ.get("RASPISANIE_INPUT") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Word txt", "Расписание.docx")
 
 
 def main(argv=None):

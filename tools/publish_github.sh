@@ -12,11 +12,15 @@
 # файлов по всей истории:
 #   - gmail автора   -> анонимная почта аккаунта GitHub;
 #   - адрес Gitea    -> gitea.local;
-#   - полное имя     -> ник ALEXalesha.
+#   - полное имя     -> ник ALEXalesha;
+#   - личный путь    -> Users\you (папка автора на диске, в ней имя; и в сообщениях
+#                       коммитов тоже).
 # Ни одна из этих строк не записана здесь: почта берётся из git config user.email,
-# адрес - из remote origin, имя - из git config publish.privateName (локальная
-# настройка, в историю не попадает). Строкой в скрипте личное однажды уже уехало на
-# GitHub - внутри самого такого скрипта.
+# адрес - из remote origin, имя - из git config publish.privateName, путь - из
+# git config publish.privatePath (локальные настройки, в историю не попадают).
+# Строкой в скрипте личное однажды уже уехало на GitHub - внутри самого такого скрипта.
+#
+#   DRY_RUN=1 bash tools/publish_github.sh  # собрать и проверить ветку, ничего не пушить
 #
 # Теги. Выпуски на GitHub привязаны к тегам, и после первой чистки истории старые
 # теги остались на коммитах ДО неё: main был чистым, а почта оставалась видна через
@@ -50,18 +54,50 @@ E_LAN="$(esc "$LAN_GITEA")"
 E_NAME="$(esc "$PRIVATE_NAME")"
 PATTERN="$E_EMAIL|$E_LAN|$E_NAME"
 
+# Личный путь (C:\папка\имя) превращается в выражение, которое ловит любое написание:
+# прямую, обратную и удвоенную обратную косую черту (JSON, строки Python), любой регистр.
+# Выражение и замена лежат файлами в .git: в строку filter-branch обратные косые черты
+# пришлось бы экранировать в три слоя.
+PRIVATE_PATH="$(git config --get publish.privatePath || true)"
+if [ -z "$PRIVATE_PATH" ]; then
+  echo "не задано git config publish.privatePath - без него личный путь не заменить" >&2
+  exit 1
+fi
+IFS='\/' read -r -a PATH_PARTS <<< "${PRIVATE_PATH#?:}"
+PATH_RE=""
+n=0
+for part in "${PATH_PARTS[@]}"; do
+  [ -n "$part" ] || continue
+  case $n in
+    0) PATH_RE="$(esc "$part")" ;;
+    1) PATH_RE="$PATH_RE"'([\\/]+)'"$(esc "$part")" ;;
+    *) PATH_RE="$PATH_RE"'[\\/]+'"$(esc "$part")" ;;
+  esac
+  n=$((n + 1))
+done
+if [ $n -lt 2 ]; then
+  echo "publish.privatePath: нужны хотя бы две папки, вида C:\\папка\\имя" >&2
+  exit 1
+fi
+GIT_DIR_ABS="$(cd "$(git rev-parse --git-dir)" && pwd)"
+PATH_SED="$GIT_DIR_ABS/publish-path.sed"
+PATH_GREP="$GIT_DIR_ABS/publish-path.grep"
+printf '%s\n' "s#$PATH_RE#Users\\1you#gI" > "$PATH_SED"
+printf '%s\n' "$PATH_RE" > "$PATH_GREP"
+
 git remote get-url github >/dev/null 2>&1 || git remote add github "https://github.com/$REPO.git"
 
 git branch -f github-main main
 FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f --env-filter "
   if [ \"\$GIT_AUTHOR_EMAIL\" = '$PRIVATE_EMAIL' ]; then export GIT_AUTHOR_EMAIL='$PUBLIC_EMAIL'; fi
   if [ \"\$GIT_COMMITTER_EMAIL\" = '$PRIVATE_EMAIL' ]; then export GIT_COMMITTER_EMAIL='$PUBLIC_EMAIL'; fi
-" github-main >/dev/null 2>&1
+" --msg-filter "sed -E -f '$PATH_SED'" github-main >/dev/null 2>&1
 git update-ref -d refs/original/refs/heads/github-main 2>/dev/null || true
 
 # `|| true`: без совпадений git grep возвращает 1, и при pipefail скрипт молча
 # обрывался бы здесь.
-DIRTY=$(git grep -I -l -E "$PATTERN" $(git rev-list github-main) -- 2>/dev/null \
+DIRTY=$( { git grep -I -l -E "$PATTERN" $(git rev-list github-main) -- 2>/dev/null || true
+           git grep -I -l -i -E -f "$PATH_GREP" $(git rev-list github-main) -- 2>/dev/null || true; } \
         | sed 's/^[^:]*://' | sort -u | tr '\n' ' ' || true)
 if [ -n "$DIRTY" ]; then
   echo "личное в файлах: $DIRTY- переписываю содержимое"
@@ -72,6 +108,7 @@ if [ -n "$DIRTY" ]; then
       blob=\$(git cat-file blob \$GIT_COMMIT:\"\$f\" \
              | sed -e 's/$E_EMAIL/$PUBLIC_EMAIL/g' -e 's/$E_LAN/$PUBLIC_GITEA/g' \
                    -e 's/$E_NAME/$PUBLIC_NAME/g' \
+             | sed -E -f '$PATH_SED' \
              | git hash-object -w --stdin)
       git update-index --cacheinfo \$mode,\$blob,\"\$f\"
     done
@@ -79,12 +116,22 @@ if [ -n "$DIRTY" ]; then
   git update-ref -d refs/original/refs/heads/github-main 2>/dev/null || true
 fi
 
-if git log github-main --format='%ae%n%ce%n%an%n%cn' | grep -q -E -x "$PATTERN"; then
+# grep без -q: с -q он выходит на первом совпадении, git log получает SIGPIPE, и при
+# pipefail условие становится ложным - страж молча пропускал бы найденное.
+if git log github-main --format='%ae%n%ce%n%an%n%cn' | grep -E -x "$PATTERN" >/dev/null; then
   echo "в публикуемой ветке осталось личное в авторе коммита - пуш отменён" >&2
   exit 1
 fi
 if git grep -I -q -E "$PATTERN" $(git rev-list github-main) -- 2>/dev/null; then
   echo "личное осталось в файлах публикуемой истории - пуш отменён" >&2
+  exit 1
+fi
+if git grep -I -q -i -E -f "$PATH_GREP" $(git rev-list github-main) -- 2>/dev/null; then
+  echo "личный путь остался в файлах публикуемой истории - пуш отменён" >&2
+  exit 1
+fi
+if git log github-main --format=%B | grep -i -E -f "$PATH_GREP" >/dev/null; then
+  echo "личный путь остался в сообщениях коммитов - пуш отменён" >&2
   exit 1
 fi
 
@@ -111,6 +158,11 @@ done
 git for-each-ref --format='%(refname)' refs/github-tags | xargs -r -n1 git update-ref -d
 
 echo "ветка github-main: $(git rev-list --count github-main) коммитов, $(git log -1 --format=%h github-main)"
+if [ "${DRY_RUN:-0}" = 1 ]; then
+  echo "DRY_RUN=1: ветка собрана и проверена, на GitHub ничего не отправлено"
+  [ -z "$MOVES" ] || echo "теги переставились бы:$MOVES"
+  exit 0
+fi
 gh auth setup-git
 git push github github-main:main --force
 if [ -n "$MOVES" ]; then
