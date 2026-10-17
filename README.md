@@ -14,6 +14,9 @@
 
 </div>
 
+[![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=claude&logoColor=white)](https://claude.com/claude-code)
+Code, tests and docs are written by Claude (Anthropic) in Claude Code. Ideas, testing and decisions - Alexey.
+
 > **The interface is in Russian**, and so is the documentation in `docs/`. The command line is English.
 
 ## Why it exists
