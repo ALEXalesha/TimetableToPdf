@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/icon.png" width="96" alt="">
+
 # Schedule to Print
 
 **Takes a timetable laid out on a landscape A4 page (`.docx` or `.pdf`), turns it 90° and places it in the upper half of a portrait A4 sheet. The empty lower half is marked with a dotted cut line.**
